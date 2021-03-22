@@ -5,10 +5,13 @@ from .module import *
 
 
 class FeatureNet(nn.Module):
+    '''
+    2D特征提取矩阵
+    '''
     def __init__(self):
         super(FeatureNet, self).__init__()
         self.inplanes = 32
-
+  
         self.conv0 = ConvBnReLU(3, 8, 3, 1, 1)
         self.conv1 = ConvBnReLU(8, 8, 3, 1, 1)
 
@@ -80,7 +83,7 @@ class RefineNet(nn.Module):
 
     def forward(self, img, depth_init):
         concat = F.cat((img, depth_init), dim=1)
-        depth_residual = self.res(self.conv3(self.conv2(self.conv1(concat))))
+        depth_residual = self.res(self.conv3(self.conv2(self.conv1(concat))))# 深度残差图
         depth_refined = depth_init + depth_residual
         return depth_refined
 
@@ -96,12 +99,12 @@ class MVSNet(nn.Module):
             self.refine_network = RefineNet()
 
     def forward(self, imgs, proj_matrices, depth_values):
-        imgs = torch.unbind(imgs, 1)
-        proj_matrices = torch.unbind(proj_matrices, 1)
+        imgs = torch.unbind(imgs, 1) # 删除维度1，返回删除后的元组
+        proj_matrices = torch.unbind(proj_matrices, 1) # 删除维度1，返回删除后的元组
         assert len(imgs) == len(proj_matrices), "Different number of images and projection matrices"
         img_height, img_width = imgs[0].shape[2], imgs[0].shape[3]
-        num_depth = depth_values.shape[1]
-        num_views = len(imgs)
+        num_depth = depth_values.shape[1] # 深度层数 
+        num_views = len(imgs) 
 
         # step 1. feature extraction
         # in: images; out: 32-channel feature maps
@@ -109,7 +112,7 @@ class MVSNet(nn.Module):
         ref_feature, src_features = features[0], features[1:]
         ref_proj, src_projs = proj_matrices[0], proj_matrices[1:]
 
-        # step 2. differentiable homograph, build cost volume
+        # step 2. differentiable homograph, build cost volume 可微单应变换，构建代价体
         ref_volume = ref_feature.unsqueeze(2).repeat(1, 1, num_depth, 1, 1)
         volume_sum = ref_volume
         volume_sq_sum = ref_volume ** 2
@@ -125,18 +128,18 @@ class MVSNet(nn.Module):
                 volume_sum += warped_volume
                 volume_sq_sum += warped_volume.pow_(2)  # the memory of warped_volume has been modified
             del warped_volume
-        # aggregate multiple feature volumes by variance
+        # aggregate multiple feature volumes by variance 通过方差聚集多个特征volume
         volume_variance = volume_sq_sum.div_(num_views).sub_(volume_sum.div_(num_views).pow_(2))
 
         # step 3. cost volume regularization
         cost_reg = self.cost_regularization(volume_variance)
         # cost_reg = F.upsample(cost_reg, [num_depth * 4, img_height, img_width], mode='trilinear')
-        cost_reg = cost_reg.squeeze(1)
-        prob_volume = F.softmax(cost_reg, dim=1)
+        cost_reg = cost_reg.squeeze(1) # 去掉维度为1
+        prob_volume = F.softmax(cost_reg, dim=1)# 从深度的角度计算sofmax值，得到可能性矩阵
         depth = depth_regression(prob_volume, depth_values=depth_values)
 
         with torch.no_grad():
-            # photometric confidence
+            # photometric confidence,光度一致性置信度
             prob_volume_sum4 = 4 * F.avg_pool3d(F.pad(prob_volume.unsqueeze(1), pad=(0, 0, 0, 0, 1, 2)), (4, 1, 1), stride=1, padding=0).squeeze(1)
             depth_index = depth_regression(prob_volume, depth_values=torch.arange(num_depth, device=prob_volume.device, dtype=torch.float)).long()
             photometric_confidence = torch.gather(prob_volume_sum4, 1, depth_index.unsqueeze(1)).squeeze(1)

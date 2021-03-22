@@ -9,9 +9,9 @@ from datasets.data_io import *
 class MVSDataset(Dataset):
     def __init__(self, datapath, listfile, mode, nviews, ndepths=192, interval_scale=1.06, **kwargs):
         super(MVSDataset, self).__init__()
-        self.datapath = datapath
-        self.listfile = listfile
-        self.mode = mode
+        self.datapath = datapath #文件地址
+        self.listfile = listfile # 训练集或测试集的文件列表
+        self.mode = mode# 模式：训练或测试
         self.nviews = nviews
         self.ndepths = ndepths
         self.interval_scale = interval_scale
