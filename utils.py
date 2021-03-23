@@ -7,12 +7,12 @@ import torch.nn.functional as F
 # print arguments
 def print_args(args):
     print("################################  args  ################################")
-    for k, v in args.__dict__.items():
+    for k, v in args.__dict__.items(): # 返回属性字典的元组
         print("{0: <10}\t{1: <30}\t{2: <20}".format(k, str(v), str(type(v))))
     print("########################################################################")
 
 
-# torch.no_grad warpper for functions
+# 定义函数无梯度
 def make_nograd_func(func):
     def wrapper(*f_args, **f_kwargs):
         with torch.no_grad():
@@ -22,10 +22,10 @@ def make_nograd_func(func):
     return wrapper
 
 
-# convert a function into recursive style to handle nested dict/list/tuple variables
+# 将函数转化为递归模式以解决互相嵌套的字典/列表/元组变量
 def make_recursive_func(func):
     def wrapper(vars):
-        if isinstance(vars, list):
+        if isinstance(vars, list):# isinstance判断变量是否为某种特定变量
             return [wrapper(x) for x in vars]
         elif isinstance(vars, tuple):
             return tuple([wrapper(x) for x in vars])
