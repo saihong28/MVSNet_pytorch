@@ -1,9 +1,13 @@
+# 定义神经网络的基本模块
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class ConvBnReLU(nn.Module):
+    '''
+    2d卷积层、BN层、ReLU层
+    '''
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, pad=1):
         super(ConvBnReLU, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, bias=False)
@@ -14,6 +18,9 @@ class ConvBnReLU(nn.Module):
 
 
 class ConvBn(nn.Module):
+    '''
+    卷积曾、BN层
+    '''
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, pad=1):
         super(ConvBn, self).__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, bias=False)
@@ -24,6 +31,9 @@ class ConvBn(nn.Module):
 
 
 class ConvBnReLU3D(nn.Module):
+    '''
+    3D卷积层，3D卷积、BN层、ReLU层
+    '''
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, pad=1):
         super(ConvBnReLU3D, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, bias=False)
@@ -34,6 +44,9 @@ class ConvBnReLU3D(nn.Module):
 
 
 class ConvBn3D(nn.Module):
+    '''
+    3D卷积层，3D卷积、BN层
+    '''
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, pad=1):
         super(ConvBn3D, self).__init__()
         self.conv = nn.Conv3d(in_channels, out_channels, kernel_size, stride=stride, padding=pad, bias=False)
@@ -44,6 +57,9 @@ class ConvBn3D(nn.Module):
 
 
 class BasicBlock(nn.Module):
+    '''
+    MVSNet卷积神经网络的基础模块
+    '''
     def __init__(self, in_channels, out_channels, stride, downsample=None):
         super(BasicBlock, self).__init__()
 
@@ -94,9 +110,16 @@ class Hourglass3d(nn.Module):
 
 
 def homo_warping(src_fea, src_proj, ref_proj, depth_values):
+    '''
+    单应性变换
+    B=batch
+    C=channel
+    H=height
+    W=width
+    '''
     # src_fea: [B, C, H, W]
-    # src_proj: [B, 4, 4]
-    # ref_proj: [B, 4, 4]
+    # src_proj: [B, 4, 4]，src的外参矩阵[R|T]，相对于世界坐标系
+    # ref_proj: [B, 4, 4]，ref的外参矩阵[R|T]，相对于世界坐标系
     # depth_values: [B, Ndepth]
     # out: [B, C, Ndepth, H, W]
     batch, channels = src_fea.shape[0], src_fea.shape[1]
@@ -104,19 +127,18 @@ def homo_warping(src_fea, src_proj, ref_proj, depth_values):
     height, width = src_fea.shape[2], src_fea.shape[3]
 
     with torch.no_grad():
-        proj = torch.matmul(src_proj, torch.inverse(ref_proj))
+        proj = torch.matmul(src_proj, torch.inverse(ref_proj))# src->rec
         rot = proj[:, :3, :3]  # [B,3,3]
         trans = proj[:, :3, 3:4]  # [B,3,1]
 
         y, x = torch.meshgrid([torch.arange(0, height, dtype=torch.float32, device=src_fea.device),
-                               torch.arange(0, width, dtype=torch.float32, device=src_fea.device)])
-        y, x = y.contiguous(), x.contiguous()
-        y, x = y.view(height * width), x.view(height * width)
-        xyz = torch.stack((x, y, torch.ones_like(x)))  # [3, H*W]
-        xyz = torch.unsqueeze(xyz, 0).repeat(batch, 1, 1)  # [B, 3, H*W]
+                               torch.arange(0, width, dtype=torch.float32, device=src_fea.device)])# 两个h*w的一张空白图，height*w，h*width
+        y, x = y.contiguous(), x.contiguous() # 使tensor数据在内存中连续，方便view()
+        y, x = y.view(height * width), x.view(height * width) #[H*W]
+        xyz = torch.stack((x, y, torch.ones_like(x)))  # [3, H*W]，dims=0
+        xyz = torch.unsqueeze(xyz, 0).repeat(batch, 1, 1)  # [B, 3, H*W]，扩招维度
         rot_xyz = torch.matmul(rot, xyz)  # [B, 3, H*W]
-        rot_depth_xyz = rot_xyz.unsqueeze(2).repeat(1, 1, num_depth, 1) * depth_values.view(batch, 1, num_depth,
-                                                                                            1)  # [B, 3, Ndepth, H*W]
+        rot_depth_xyz = rot_xyz.unsqueeze(2).repeat(1, 1, num_depth, 1) * depth_values.view(batch, 1, num_depth,1)  # [B, 3, Ndepth, H*W]
         proj_xyz = rot_depth_xyz + trans.view(batch, 3, 1, 1)  # [B, 3, Ndepth, H*W]
         proj_xy = proj_xyz[:, :2, :, :] / proj_xyz[:, 2:3, :, :]  # [B, 2, Ndepth, H*W]
         proj_x_normalized = proj_xy[:, 0, :, :] / ((width - 1) / 2) - 1
@@ -125,7 +147,7 @@ def homo_warping(src_fea, src_proj, ref_proj, depth_values):
         grid = proj_xy
 
     warped_src_fea = F.grid_sample(src_fea, grid.view(batch, num_depth * height, width, 2), mode='bilinear',
-                                   padding_mode='zeros')
+                                   padding_mode='zeros')# src_fea: [B, C, H, W]，gird.view [B,N*H,W,2]
     warped_src_fea = warped_src_fea.view(batch, channels, num_depth, height, width)
 
     return warped_src_fea
@@ -134,8 +156,11 @@ def homo_warping(src_fea, src_proj, ref_proj, depth_values):
 # p: probability volume [B, D, H, W]
 # depth_values: discrete depth values [B, D]
 def depth_regression(p, depth_values):
+    '''
+    初始深度图计算,求和depth*p
+    '''
     depth_values = depth_values.view(*depth_values.shape, 1, 1)
-    depth = torch.sum(p * depth_values, 1)
+    depth = torch.sum(p * depth_values, 1)# 在深度维度上集合
     return depth
 
 
