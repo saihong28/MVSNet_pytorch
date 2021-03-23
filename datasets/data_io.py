@@ -2,8 +2,21 @@ import numpy as np
 import re
 import sys
 
+# PMF格式
+#         PMF格式主要有两部分组成：文件头、元数据区。
+# 文件头：
+# pfm文件头中属性按行存储，以0xA结束行，属性值以字符格式表示
+# 第一行：文件标记　　，'pf'  单通道（1个float表示元数据）    'PF'３通道（3个float 表示元数据）
+# 第二行：width
+# 第三行：height　　
+# 第四行：scale               ，scale > 0 大端存储，scale <0 小端存储
+# 元数据区：
+# 由四字节浮点数组构成
 
 def read_pfm(filename):
+    '''
+    读取pfm格式的文件
+    '''
     file = open(filename, 'rb')
     color = None
     width = None
@@ -11,7 +24,7 @@ def read_pfm(filename):
     scale = None
     endian = None
 
-    header = file.readline().decode('utf-8').rstrip()
+    header = file.readline().decode('utf-8').rstrip()#  删除 string 字符串末尾的指定字符（默认为空格）.
     if header == 'PF':
         color = True
     elif header == 'Pf':
@@ -42,6 +55,9 @@ def read_pfm(filename):
 
 
 def save_pfm(filename, image, scale=1):
+    '''
+    保存为pfm格式的文件
+    '''
     file = open(filename, "wb")
     color = None
 
@@ -60,7 +76,7 @@ def save_pfm(filename, image, scale=1):
     file.write('PF\n'.encode('utf-8') if color else 'Pf\n'.encode('utf-8'))
     file.write('{} {}\n'.format(image.shape[1], image.shape[0]).encode('utf-8'))
 
-    endian = image.dtype.byteorder
+    endian = image.dtype.byteorder # image的字节序
 
     if endian == '<' or endian == '=' and sys.byteorder == 'little':
         scale = -scale

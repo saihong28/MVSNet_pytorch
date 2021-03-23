@@ -20,6 +20,9 @@ class MVSDataset(Dataset):
         self.metas = self.build_list()
 
     def build_list(self):
+        '''
+        构建reference_view和对应的source_view列表
+        '''
         metas = []
         with open(self.listfile) as f:
             scans = f.readlines()
@@ -36,7 +39,7 @@ class MVSDataset(Dataset):
                     ref_view = int(f.readline().rstrip())
                     src_views = [int(x) for x in f.readline().rstrip().split()[1::2]]
                     # light conditions 0-6
-                    for light_idx in range(7):
+                    for light_idx in range(7):# light_idx为光照系数
                         metas.append((scan, light_idx, ref_view, src_views))
         print("dataset", self.mode, "metas:", len(metas))
         return metas
@@ -113,15 +116,15 @@ class MVSDataset(Dataset):
 
 if __name__ == "__main__":
     # some testing code, just IGNORE it
-    dataset = MVSDataset("/home/xyguo/dataset/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/train.txt', 'train',
+    dataset = MVSDataset("/home/liboyang/桌面/SLAM/MVSNet_pytorch/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/train.txt', 'train',
                          3, 128)
     item = dataset[50]
 
-    dataset = MVSDataset("/home/xyguo/dataset/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/val.txt', 'val', 3,
+    dataset = MVSDataset("/home/liboyang/桌面/SLAM/MVSNet_pytorch/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/val.txt', 'val', 3,
                          128)
     item = dataset[50]
 
-    dataset = MVSDataset("/home/xyguo/dataset/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/test.txt', 'test', 5,
+    dataset = MVSDataset("/home/liboyang/桌面/SLAM/MVSNet_pytorch/dtu_mvs/processed/mvs_training/dtu/", '../lists/dtu/test.txt', 'test', 5,
                          128)
     item = dataset[50]
 
