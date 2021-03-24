@@ -5,6 +5,7 @@ checkpoints
 __pycache__
 dtu_mvs
 .vscode
+.output
 
 
 
